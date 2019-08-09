@@ -41,6 +41,11 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
+
+// #if defined(assert)
+// 	#undef assert
+// #endif
+// #define assert(x)
 using namespace llvm;
 
 //
@@ -658,18 +663,31 @@ MonoException::endModule()
 void
 MonoException::beginInstruction(const MachineInstr *MI)
 {
-	if (MI->getOpcode() == TargetOpcode::CFI_INSTRUCTION) {
-		unsigned CFIIndex = MI->getOperand(0).getCFIIndex();
+    if (MI->getOpcode() == TargetOpcode::CFI_INSTRUCTION) {
+        unsigned CFIIndex = MI->getOperand(0).getCFIIndex();
 
-		//outs () << "D: " << CFIIndex << " " << EHLabels.size() << "\n";
+        //outs () << "D: " << CFIIndex << " " << EHLabels.size() << "\n";
 
-		/* Emit a label and save the label-cfi index association */
-		if (CFIIndex != EHLabels.size())
-			assert (0);
+        /* Emit a label and save the label-cfi index association */
+        #if 1
+        size_t max = CFIIndex + 1;
+        auto sz = EHLabels.size();
+        if (max >= sz) {
+            EHLabels.resize(max, nullptr);
+            for (size_t i = sz; i < max; ++i) {
+                MCSymbol *Label = Asm->OutContext.createTempSymbol();
+                Asm->OutStreamer->EmitLabel(Label);
+                EHLabels.at(i) = Label;
+            }
+        }
+        #else
+        if (CFIIndex != EHLabels.size())
+            assert (0);
 
-		MCSymbol *Label = Asm->OutContext.createTempSymbol();
-		Asm->OutStreamer->EmitLabel(Label);
+        MCSymbol *Label = Asm->OutContext.createTempSymbol();
+        Asm->OutStreamer->EmitLabel(Label);
 
-		EHLabels.push_back(Label);
-	}
+        EHLabels.push_back(Label);
+        #endif
+    }
 }

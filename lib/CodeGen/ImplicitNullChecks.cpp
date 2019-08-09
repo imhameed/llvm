@@ -481,8 +481,10 @@ bool ImplicitNullChecks::analyzeBlockForNullChecks(
 
   // If we cannot erase the test instruction itself, then making the null check
   // implicit does not buy us much.
-  if (!MBP.SingleUseCondition)
+  if (!MBP.SingleUseCondition) {
+    printf("single use condition failed\n");
     return false;
+  }
 
   MachineBasicBlock *NotNullSucc, *NullSucc;
 
@@ -496,8 +498,10 @@ bool ImplicitNullChecks::analyzeBlockForNullChecks(
 
   // We handle the simplest case for now.  We can potentially do better by using
   // the machine dominator tree.
-  if (NotNullSucc->pred_size() != 1)
+  if (NotNullSucc->pred_size() != 1) {
+    printf("pred_size != 1 constraint failed\n");
     return false;
+  }
 
   // To prevent the invalid transformation of the following code:
   //
@@ -522,8 +526,10 @@ bool ImplicitNullChecks::analyzeBlockForNullChecks(
   assert(MBP.ConditionDef->getParent() ==  &MBB && "Should be in basic block");
 
   for (auto I = MBB.rbegin(); MBP.ConditionDef != &*I; ++I)
-    if (I->modifiesRegister(PointerReg, TRI))
+    if (I->modifiesRegister(PointerReg, TRI)) {
+      printf("register modification constraint failed\n");
       return false;
+    }
 
   // Starting with a code fragment like:
   //
@@ -582,13 +588,17 @@ bool ImplicitNullChecks::analyzeBlockForNullChecks(
   SmallVector<MachineInstr *, 8> InstsSeenSoFar;
 
   for (auto &MI : *NotNullSucc) {
-    if (!canHandle(&MI) || InstsSeenSoFar.size() >= MaxInstsToConsider)
+    if (!canHandle(&MI) || InstsSeenSoFar.size() >= MaxInstsToConsider) {
+      printf("can't handle MI or insts seen beyond max insts to consider\n");
       return false;
+    }
 
     MachineInstr *Dependence;
     SuitabilityResult SR = isSuitableMemoryOp(MI, PointerReg, InstsSeenSoFar);
-    if (SR == SR_Impossible)
+    if (SR == SR_Impossible) {
+      printf("pointerreg range constraint failed\n");
       return false;
+    }
     if (SR == SR_Suitable &&
         canHoistInst(&MI, PointerReg, InstsSeenSoFar, NullSucc, Dependence)) {
       NullCheckList.emplace_back(&MI, MBP.ConditionDef, &MBB, NotNullSucc,
@@ -600,8 +610,10 @@ bool ImplicitNullChecks::analyzeBlockForNullChecks(
     if (llvm::any_of(MI.operands(), [&](MachineOperand &MO) {
           return MO.isReg() && MO.getReg() && MO.isDef() &&
                  TRI->regsOverlap(MO.getReg(), PointerReg);
-        }))
+        })) {
+      printf("pointerreg redefinition constraint failed\n");
       return false;
+    }
     InstsSeenSoFar.push_back(&MI);
   }
 
